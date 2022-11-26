@@ -1,5 +1,5 @@
 
-##### BEFORE USING THIS CODE, PLEASE READ THE LAST SECTIONS OF THIS ( ) BLOG POST, WHICH EXPLAIN HOW TO USE IT #####
+##### BEFORE USING THIS CODE, PLEASE READ THE LAST SECTIONS OF THIS (https://homesignalblog.wordpress.com/2022/11/26/stringlines/) BLOG POST, WHICH EXPLAIN HOW TO USE IT #####
 
 library(purrr)
 library(data.table)
