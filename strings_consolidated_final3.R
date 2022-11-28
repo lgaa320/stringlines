@@ -26,18 +26,18 @@ setwd() #Set a path to your R working directory here. eg. "C:/Users/yourname/Doc
 ############### parameters here ############### 
 #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~#
 
-dat_master <- read_gtfs("http://web.mta.info/developers/data/nyct/subway/google_transit.zip") #this should be the path to your GTFS file.
+dat_master <- read_gtfs("C:/Users/Uday/Downloads/mbta_gtfs.zip") #this should be the path to your GTFS file.
 #You may also insert the download link to an agency GTFS feed here. 
 
 #NOTE: for all of these fields, when leaving elements blank, do not use "". The code's function depends on it.
 #Eg. leaving routes_secondary blank should look like routes_secondary <- c() not routes_secondary <- c(")
 
-template_choice <- "Most" #Most (for most common) or Longest (for longest pattern). 
+template_choice <- "Longest" #Most (for most common) or Longest (for longest pattern). 
 
 name_elim <- FALSE #Whether you want the code to reduce the number of stops shown on the Y axis. TRUE or FALSE. 
 use_rt_sht <- FALSE #Should the code replace route_ids with route_short_names
 
-route_tar <- c("2", "3") #Use route_ids , not the full route names. Run 1-22 and see dat$routes for more information. 
+route_tar <- c("74") #Use route_ids , not the full route names. Run 1-22 and see dat$routes for more information. 
 #You can use up to 2 routes in the route_tar argument, BUT the 2 routes must a) share at least 2 stops, and b) have the same direction_id-direction correspondances.
 #For example, the J and M trains in New York run together, but a Metropolitan Ave-bound M and a Jamaica-bound J have direction_ids of 1 and 0, respectively, so you
 #cannot plot both at the same time. You can, however, put them in the routes_secondary argument, provided you plan to plot directions 0 and 1.
@@ -47,12 +47,12 @@ stop_mand <- c() #If you want to ensure that the string plot includes a certain 
 
 routes_secondary <- c() #Add any other routes you'd like to see shown on your string plot. Not many rules for what can/can't go here!
 
-dir_tar <- c(0) #Select one or both directions to view. Possible directions are 0 and 1. What they correspond to varies by agency.
+dir_tar <- c(0,1) #Select one or both directions to view. Possible directions are 0 and 1. What they correspond to varies by agency.
 
-date_tar <- as.Date("2022-12-07") #Choose your sample date. This MUST lie within the start/end dates of your gtfs. Run lines 1-63 and 
+date_tar <- as.Date("2022-11-23") #Choose your sample date. This MUST lie within the start/end dates of your gtfs. Run lines 1-63 and 
 #paste View(dat$.$dates_services) in the command line to see available dates, or see the dates listed on the GTFS download site. 
 
-time_start <- period_to_seconds(hms("11:00:00")) #Start time for the plot
+time_start <- period_to_seconds(hms("8:00:00")) #Start time for the plot
 time_end <- period_to_seconds(hms("13:00:00")) #End time for the plot 
 
 #Along with all these parameters, you may also wish to change the dimensions of the output plot. Use the last line of the code to do that.
@@ -500,7 +500,15 @@ if(rttst == 1 & length(dir_tar)>1){
     st_set_geometry(NULL)%>%
     ungroup()%>%
     filter(brk_flag == 1)%>%
-    filter(!duplicated(stop_id))%>%
+    arrange(dist)%>%
+    mutate(index = row_number())%>%
+    group_by(stop_id)%>%
+    mutate(n = n())%>%
+    ungroup()%>%
+    filter(case_when(index = max(index) & n==2~!duplicated(stop_id),
+                     index = min(index) & n==2~!duplicated(stop_id),
+                     TRUE ~ !is.na(stop_id)))%>%
+    select(-n,-index)%>%
     mutate(brk_elim = case_when(abs(lead(dist)-dist)<.5 & abs(lag(dist)-dist)<.5 ~ 1, 
                                 TRUE ~ 0))%>%
     mutate(brk_elim = case_when(row_number()%%2 == 0 & lead(brk_elim) == 1 & abs(lead(dist)-dist)<.5 ~1,
@@ -827,17 +835,11 @@ rtlstall3 <- rtlstall2%>%
     mutate(grp3 = ifelse(grp3%%2==1,grp3-1,grp3))%>%
     mutate(grp2 = ifelse(n_occur==2&brk_flag==1&!is.na(lag(grp2)),lag(grp2),grp2))%>%
     ungroup()%>%
-    mutate(change = ifelse(lag(grp)!=grp & !is.na(grp) | lag(grp2) != grp2 & !is.na(grp2) | lag(grp3) != grp3 & !is.na(grp3), 1, 0))%>%
     mutate(n_occur = ifelse(n_occur == 2 & lead(n_occur)==1 & lag(n_occur)==1, 1, n_occur))%>%
+    mutate(change = case_when(abs(abs(dist_raw-lag(dist_raw))-abs(dist-lag(dist)))<.05 ~ 0,
+                              n_occur == 2 & abs(abs(dist_raw-lag(dist_raw))-abs(dist-lag(dist)))>=.05 ~ 0,
+                              TRUE ~ 1))%>%
     mutate(change = ifelse(is.na(change),0,change))%>%
-    mutate(change = case_when(change == 1 & lag(direction_id)==direction_id & lag(route_id)==route_id & lag(grp)==grp & 
-                                abs(abs(dist_raw-lag(dist_raw))-abs(dist-lag(dist)))<.05 ~ 0,
-                              change == 1 & n_occur == 2 & abs(abs(dist_raw-lag(dist_raw))-abs(dist-lag(dist)))<.05 ~ 0,
-                              lag(grp)!=grp & !is.na(grp) & change == 1 & lag(route_id)==route_id &
-                                lag(direction_id)==direction_id & abs(abs(dist_raw-lag(dist_raw))-abs(dist-lag(dist)))<.05 ~ 0,
-                              n_occur == 1 & lag(n_occur) == 1 & route_id != lag(route_id)~ 1, 
-                              !is.na(add)&!is.na(lag(add))&add!=lag(add)~ 1,
-                              TRUE ~ change))%>%
     mutate(grp = cumsum(change))%>%
     group_by(stop_id,direction_id)%>%
     mutate(grp = max(grp))%>%
@@ -1016,13 +1018,13 @@ p <- ggplot(df, aes(x = arrival_time_t, y = dist))+
           panel.grid.minor.x = element_line(color = "grey85", size = .6),
           panel.grid.major.y = element_line(color = "grey85", size = .6),
           panel.grid.minor.y = element_line(color = "grey85", size = .6),
-          axis.line = element_line(color = "grey70", size = .75),
+          axis.line = element_line(color = "grey70", linewidth = .75),
           axis.ticks = element_line(color = "grey70"),
           axis.text = element_text(size = 12.5),
           plot.caption = element_text(size = 11),
           strip.text.y = element_blank())+
     guides(linetype = "none",size = "none")+
-    geom_point(data = df,lwd = 1.45, alpha = .35,shape=16)+
+    geom_point(data = df, lwd = 1.45, alpha = .35,shape=16)+
     geom_point(data = df %>% 
                  inner_join(.,stops_sf2%>%st_set_geometry(NULL)%>%
                               select(stop_id,direction_id,stop_name2=stop_name)%>%
@@ -1046,4 +1048,4 @@ p <- ggplot(df, aes(x = arrival_time_t, y = dist))+
 plot(p)
 
 ggsave(stri_c("stringline","_",as.numeric(Sys.time()),".png"),device="png",
-       plot = p, width = 30, height = 13, units = "in", dpi = 300) 
+       plot = p, width = 25, height = 20, units = "in", dpi = 300) 
